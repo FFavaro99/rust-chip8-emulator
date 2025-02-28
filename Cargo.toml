@@ -1,0 +1,11 @@
+[package]
+name = "rust-chip8-emulator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rfd = "0.15.2"
+glfw = "0.59.0"
+gl = "0.14.0"
+fundsp = "0.20.0"
+cpal = "0.15.3"
