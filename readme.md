@@ -24,6 +24,8 @@ In this emulator, these keys correspond to:
 ```
 Each game uses keys as it pleases, so you'll have to play around with these keys to find out what does what. For space invaders, for example, you move with `Q` and `E` and shoot with `W`
 
+Additionally, you can pause the game with `Spacebar`.
+
 # Multithreading
 Multithreading in this program is achieved through mutable shared state. In Rust, this is implemented through Arc<RwLock<T>>. In the future I might consider a refactor in favour of channels.
 
