@@ -45,7 +45,7 @@ impl Emulator {
             status,
             display_state,
             memory,
-            clock_frequency: 600,
+            clock_frequency: 500,
             last_instruction_cycle: Instant::now(),
             keys
         }
@@ -80,29 +80,22 @@ impl Emulator {
                 self.program_counter = instruction & 0x0FFF;
             }
             0x3000 => {
-                if self.registers[((instruction & 0x0F00) >> 8) as usize]
-                    == (instruction & 0x0FF) as u8
-                {
+                if self.registers[((instruction & 0x0F00) >> 8) as usize] == (instruction & 0x0FF) as u8 {
                     self.program_counter += 2;
                 }
             }
             0x4000 => {
-                if self.registers[((instruction & 0x0F00) >> 8) as usize]
-                    != (instruction & 0x0FF) as u8
-                {
+                if self.registers[((instruction & 0x0F00) >> 8) as usize] != (instruction & 0x0FF) as u8 {
                     self.program_counter += 2;
                 }
             }
             0x5000 => {
-                if self.registers[((instruction & 0x0F00) >> 8) as usize]
-                    == self.registers[((instruction & 0x00F0) >> 4) as usize]
-                {
+                if self.registers[((instruction & 0x0F00) >> 8) as usize] == self.registers[((instruction & 0x00F0) >> 4) as usize] {
                     self.program_counter += 2;
                 }
             }
             0x6000 => {
-                self.registers[((instruction & 0x0F00) >> 8) as usize] =
-                    (instruction & 0x00FF) as u8;
+                self.registers[((instruction & 0x0F00) >> 8) as usize] = (instruction & 0x00FF) as u8;
             }
             0x7000 => {
                 self.registers[((instruction & 0x0F00) >> 8) as usize] = self
@@ -117,14 +110,17 @@ impl Emulator {
                 0x1 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] |=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
+                    self.registers[0xF] = 0;
                 }
                 0x2 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] &=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
+                    self.registers[0xF] = 0;
                 }
                 0x3 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] ^=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
+                    self.registers[0xF] = 0;
                 }
                 0x4 => {
                     let mut f_value = 0;
@@ -146,6 +142,7 @@ impl Emulator {
                     self.registers[0xF] = f_value;
                 }
                 0x6 => {
+                    self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize];
                     let mut f_value = 0;
                     if self.registers[((instruction & 0x0F00) >> 8) as usize] & 0x1 == 1 {
                         f_value = 1;
@@ -163,6 +160,7 @@ impl Emulator {
                     self.registers[0xF] = f_value;
                 }
                 0xE => {
+                    self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize];
                     let mut f_value = 0;
                     if self.registers[((instruction & 0x0F00) >> 8) as usize] & 0b1000_0000 == 0b1000_0000 {
                         f_value = 1;
@@ -205,14 +203,14 @@ impl Emulator {
             }
             0xE000 => match instruction & 0x00FF {
                 0x009E => {
-                    let key_index = self.registers[((0x0F00 & instruction)>>8) as usize] as usize;
+                    let key_index = (self.registers[((0x0F00 & instruction)>>8) as usize] & 0xF) as usize;
                     let read_keys = self.keys.read().unwrap();
                     if read_keys[key_index] {
                         self.program_counter += 2;
                     }
                 }
                 0x00A1 => {
-                    let key_value = self.registers[((0x0F00 & instruction)>>8) as usize] as usize;
+                    let key_value = (self.registers[((0x0F00 & instruction)>>8) as usize] &0xF) as usize;
                     let read_keys = self.keys.read().unwrap();
                     if !read_keys[key_value] {
                         self.program_counter += 2;
@@ -251,7 +249,7 @@ impl Emulator {
                     self.i_register = self.i_register.wrapping_add(self.registers[((0xF00 & instruction)>>8) as usize] as u16);
                 }
                 0x0029 => {
-                    self.i_register = 5 * self.registers[((0xF00 & instruction)>>8) as usize] as u16
+                    self.i_register = 5 * (self.registers[((0xF00 & instruction)>>8) as usize] & 0xF) as u16
                 }
                 0x0033 => {
                     let num = self.registers[((instruction & 0x0F00) >> 8) as usize];
@@ -269,6 +267,7 @@ impl Emulator {
                     for i in 0 ..x+1 {
                         write_memory[self.i_register as usize + i] = self.registers[i];
                     }
+                    self.i_register += (x + 1) as u16;
                 }
                 0x0065 => {
                     let x = ((instruction & 0x0F00) >> 8) as usize;
@@ -276,6 +275,7 @@ impl Emulator {
                     for i in 0 ..x+1 {
                         self.registers[i] = read_memory[i + self.i_register as usize];
                     }
+                    self.i_register += (x + 1) as u16;
                 }
                 _ => {println!("Not an instruction: {:#x}", instruction);}
             }
@@ -337,7 +337,6 @@ impl Emulator {
     }
 
     fn draw_sprite(&self, reg1: usize, reg2: usize, n: u16) -> bool {
-        //todo: wrapping logic
         let mut collision_flag = false;
 
         let initial_x = self.registers[reg1];
@@ -346,16 +345,18 @@ impl Emulator {
         let mut y = initial_y as usize;
         let read_memory = self.memory.read().unwrap();
         for i in self.i_register..self.i_register + n {
-            if y >= 32 {break;}
             let mut x = initial_x as usize;
             let mut write_display = self.display_state.write().unwrap();
             let sprite_line = read_memory[i as usize];
             for n in 0..8 {
                 let bit = (sprite_line & (1 << 7 - n)) >> 7 - n;
-                if write_display[y][x%64] & bit as usize == 1 {
+                // Modulus is used to wrap to the other side.
+                // For example, if attempting to write at [34][67]
+                // they become -> [2][3] instead
+                if write_display[y%32][x%64] & bit as usize == 1 {
                     collision_flag = true;
                 }
-                write_display[y][x%64] ^= bit as usize;
+                write_display[y%32][x%64] ^= bit as usize;
                 x += 1;
             }
             y += 1;
