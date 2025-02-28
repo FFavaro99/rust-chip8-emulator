@@ -5,12 +5,11 @@ use std::io::{BufReader, Read};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use rfd::FileDialog;
-use crate::emulator::Emulator;
+use crate::emulator::{Emulator, Variant};
 use crate::gui::run_gui;
 
 mod emulator;
 mod gui;
-mod sound;
 
 pub enum Status {
     Starting,
@@ -27,17 +26,19 @@ pub fn main() {
     let keys: Arc<RwLock<[bool;16]>> = Arc::new(RwLock::new([false;16]));
 
     let mut is_running = false;
+    let mut variant = Variant::CosmacVip;
     match load_game(memory.clone()) {
-        Some(()) => {
+        Some(v) => {
             let mut status_write = status.write().unwrap();
             *status_write = Status::Running;
             is_running = true;
+            variant = v;
         },
         _ => {}
     }
 
     if is_running {
-        let mut emulator = Emulator::new(status.clone(), memory.clone(), display_state.clone(), keys.clone());
+        let mut emulator = Emulator::new(status.clone(), memory.clone(), display_state.clone(), keys.clone(), variant);
         let emulator_handle = thread::spawn(move || emulator.run());
         let display_state_copy = display_state.clone();
         let pressed_key_gui_copy = keys.clone();
@@ -55,7 +56,7 @@ pub fn main() {
 
 }
 
-fn load_game(memory: Arc<RwLock<Vec<u8>>>) -> Option<()>{
+fn load_game(memory: Arc<RwLock<Vec<u8>>>) -> Option<Variant>{
     let files = FileDialog::new()
         .add_filter("Chip 8", &["ch8"])
         .set_directory("/")
@@ -77,7 +78,35 @@ fn load_game(memory: Arc<RwLock<Vec<u8>>>) -> Option<()>{
         ram[index] = byte;
         index += 1;
     });
-    Some(())
+
+    drop(ram);
+    Some(map_hash_to_variant(memory))
 }
 
 const SPRITES: [u8;80] = [0xF0,0x90,0x90,0x90,0xF0, 0x20,0x60,0x20,0x20,0x70, 0xF0,0x10,0xF0,0x80,0xF0, 0xF0,0x10,0xF0,0x10,0xF0, 0x90,0x90,0xF0,0x10,0x10, 0xF0,0x80,0xF0,0x10,0xF0, 0xF0,0x80,0xF0,0x90,0xF0, 0xF0,0x10,0x20,0x40,0x40, 0xF0,0x90,0xF0,0x90,0xF0, 0xF0,0x90,0xF0,0x10,0xF0, 0xF0,0x90,0xF0,0x90,0x90, 0xE0,0x90,0xE0,0x90,0xE0, 0xF0,0x80,0x80,0x80,0xF0, 0xE0,0x90,0x90,0x90,0xE0, 0xF0,0x80,0xF0,0x80,0xF0, 0xF0,0x80,0xF0,0x80,0x80];
+fn map_hash_to_variant(memory: Arc<RwLock<Vec<u8>>>) -> Variant {
+    match calculate_hash(memory) {
+        0xec4ccd80 => {Variant::CosmacVip}, // Animal Race
+        0x2d0e7c46 => {Variant::SuperChip}, // Space Invaders
+        _ => {Variant::CosmacVip}
+    }
+}
+
+fn calculate_hash(memory: Arc<RwLock<Vec<u8>>>) -> u64 {
+    let read_memory = memory.read().unwrap();
+    let mut assembled_instructions = [0u64;4];
+    let mem_index = 0x200;
+    let mut counter = 0;
+    for i in 0.. 32 {
+        if i != 0 && i % 8 == 0 {counter += 1;}
+        assembled_instructions[counter] |= (read_memory[mem_index + i] as u64) << (8 *(i % 4));
+    }
+
+    let mut result = 0;
+    for n in assembled_instructions {
+        result ^= n;
+    }
+
+    println!("Hash: {:#x}", result);
+    result
+}

@@ -3,6 +3,12 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub enum Variant {
+    CosmacVip,
+    SuperChip,
+    SuperChipExtended
+}
+
 pub struct Emulator {
     registers: [u8; 16],
     i_register: u16,
@@ -16,7 +22,8 @@ pub struct Emulator {
     display_state: Arc<RwLock<[[usize; 64]; 32]>>,
     clock_frequency: u64,
     last_instruction_cycle: Instant,
-    keys: Arc<RwLock<[bool;16]>>
+    keys: Arc<RwLock<[bool;16]>>,
+    variant: Variant
 }
 
 impl Emulator {
@@ -24,7 +31,8 @@ impl Emulator {
         status: Arc<RwLock<Status>>,
         memory: Arc<RwLock<Vec<u8>>>,
         display_state: Arc<RwLock<[[usize; 64]; 32]>>,
-        keys: Arc<RwLock<[bool;16]>>
+        keys: Arc<RwLock<[bool;16]>>,
+        variant: Variant
     ) -> Emulator {
         let delay_timer = Arc::new(RwLock::new(0));
         let sound_timer = Arc::new(RwLock::new(0));
@@ -45,9 +53,10 @@ impl Emulator {
             status,
             display_state,
             memory,
-            clock_frequency: 500,
+            clock_frequency: 600,
             last_instruction_cycle: Instant::now(),
-            keys
+            keys,
+            variant
         }
     }
 
@@ -110,17 +119,23 @@ impl Emulator {
                 0x1 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] |=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
-                    self.registers[0xF] = 0;
+                    if matches!(self.variant, Variant::CosmacVip) {
+                        self.registers[0xF] = 0;
+                    }
                 }
                 0x2 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] &=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
-                    self.registers[0xF] = 0;
+                    if matches!(self.variant, Variant::CosmacVip) {
+                        self.registers[0xF] = 0;
+                    }
                 }
                 0x3 => {
                     self.registers[((instruction & 0x0F00) >> 8) as usize] ^=
                         self.registers[((instruction & 0x00F0) >> 4) as usize];
-                    self.registers[0xF] = 0;
+                    if matches!(self.variant, Variant::CosmacVip) {
+                        self.registers[0xF] = 0;
+                    }
                 }
                 0x4 => {
                     let mut f_value = 0;
@@ -142,7 +157,9 @@ impl Emulator {
                     self.registers[0xF] = f_value;
                 }
                 0x6 => {
-                    self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize];
+                    if !matches!(self.variant, Variant::SuperChip) && !matches!(self.variant, Variant::SuperChipExtended) {
+                        self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize]
+                    };
                     let mut f_value = 0;
                     if self.registers[((instruction & 0x0F00) >> 8) as usize] & 0x1 == 1 {
                         f_value = 1;
@@ -160,7 +177,9 @@ impl Emulator {
                     self.registers[0xF] = f_value;
                 }
                 0xE => {
-                    self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize];
+                    if !matches!(self.variant, Variant::SuperChip) && !matches!(self.variant, Variant::SuperChipExtended) {
+                        self.registers[((instruction & 0x0F00) >> 8) as usize] = self.registers[((instruction & 0x0F0) >> 4) as usize]
+                    };
                     let mut f_value = 0;
                     if self.registers[((instruction & 0x0F00) >> 8) as usize] & 0b1000_0000 == 0b1000_0000 {
                         f_value = 1;
@@ -249,7 +268,12 @@ impl Emulator {
                     self.i_register = self.i_register.wrapping_add(self.registers[((0xF00 & instruction)>>8) as usize] as u16);
                 }
                 0x0029 => {
-                    self.i_register = 5 * (self.registers[((0xF00 & instruction)>>8) as usize] & 0xF) as u16
+                    match self.variant {
+                        Variant::CosmacVip => {
+                            self.i_register = 5 * (self.registers[((0xF00 & instruction)>>8) as usize] & 0xF) as u16;
+                        }
+                        _ => {self.i_register = 5 * self.registers[((0xF00 & instruction)>>8) as usize] as u16;}
+                    }
                 }
                 0x0033 => {
                     let num = self.registers[((instruction & 0x0F00) >> 8) as usize];
@@ -267,7 +291,10 @@ impl Emulator {
                     for i in 0 ..x+1 {
                         write_memory[self.i_register as usize + i] = self.registers[i];
                     }
-                    self.i_register += (x + 1) as u16;
+                    match self.variant {
+                        Variant::CosmacVip => {self.i_register += (x + 1) as u16;}
+                        _ => {}
+                    }
                 }
                 0x0065 => {
                     let x = ((instruction & 0x0F00) >> 8) as usize;
@@ -275,7 +302,10 @@ impl Emulator {
                     for i in 0 ..x+1 {
                         self.registers[i] = read_memory[i + self.i_register as usize];
                     }
-                    self.i_register += (x + 1) as u16;
+                    match self.variant {
+                        Variant::CosmacVip => {self.i_register += (x + 1) as u16;}
+                        _ => {}
+                    }
                 }
                 _ => {println!("Not an instruction: {:#x}", instruction);}
             }
