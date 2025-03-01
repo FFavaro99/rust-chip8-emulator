@@ -203,9 +203,11 @@ impl Emulator {
             }
             0xB000 => { self.program_counter = (0x0FFF & instruction).wrapping_add(self.registers[0] as u16);}
             0xC000 => {
-                //todo: implement a better RNG algorithm
-                let mut rng = 0;
-                for val in self.registers {rng ^= val;}
+                let ptr = Box::into_raw(Box::new(123));
+                let mut rng = (ptr as usize >> 4 & 0xFF) as u8;
+                for val in self.registers {
+                    rng ^= val;
+                }
                 self.registers[((0x0F00 & instruction)>>8) as usize] = rng & (0x00FF & instruction) as u8;
             }
             0xD000 => {
@@ -253,7 +255,6 @@ impl Emulator {
                                 break;
                             }
                         }
-                        if !key_found {thread::sleep(Duration::from_millis(20));}
                     }
                     println!("Found pressed key: {}", key_value);
                     self.registers[((0x0F00 & instruction) >> 8) as usize] = key_value as u8;

@@ -45,3 +45,25 @@ Here is a list of features I am planning to implement:
 2. Layered OpenGL GUI, to add buttons for loading a new game, pausing, saving game state;
 3. A color picker to allow users to choose the color palette they prefer;
 4. Debugger capabilities.
+
+# Supported Games
+
+CHIP-8:
+- 15 Puzzle by Roger Ivie
+- Animal Race by Brian Astle
+- Breakout by Carmelo Cortez
+- Brick
+- Brix by Anderas Gustafsson
+- Cave
+- Coin Flipping by Carmelo Cortez
+- Craps by Carmelo Cortez
+
+S-CHIP-1.1
+- Airplane
+- Astro Dodge by Revival Studios
+- Blinky by Hans Christian Egeberg
+- Blitz by David Winter
+- Bowling by Gooitzen Van Der Wal
+- Breakout by David Winter
+- IBM Logo
+- - Space Invaders by David Winter
